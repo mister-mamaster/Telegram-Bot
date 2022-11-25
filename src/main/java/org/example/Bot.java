@@ -14,18 +14,19 @@ import java.util.List;
 
 public class Bot extends TelegramLongPollingBot {
 
-    List<Boolean> buttonIsOn = new ArrayList<>();
+    Boolean buttonIsOn = false;
 
     @Override
     public void onUpdateReceived(Update update) {
         Message message = update.getMessage();
-        if(message != null && message.hasText()){
+        if(message != null && message.hasText() && !buttonIsOn){
 
             switch (message.getText()){
                 case "/spells":
 
                     try {
-                        sendMsg(message, "*Описание заклинания*");
+                        buttonIsOn = true;
+                        sendMsg(message, "Введите название заклинания\nРекомендуется использовать следующие:\nhellish rebuke\nantipathy sympathy\naura of vitality\naura of life");
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -35,8 +36,19 @@ public class Bot extends TelegramLongPollingBot {
                     break;
                 default:
             }
+            return;
         }
 
+        if(message != null && message.hasText() && buttonIsOn){
+            try {
+                URLReader reader = new URLReader();
+                sendMsg(message, reader.getData(message.getText()));
+                buttonIsOn = false;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return;
+        }
     }
 
     public String getBotUsername() {
