@@ -2,32 +2,23 @@ package org.example;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ibm.cloud.sdk.core.security.Authenticator;
-import com.ibm.watson.developer_cloud.service.security.IamOptions;
-import com.ibm.watson.developer_cloud.visual_recognition.v3.VisualRecognition;
-import com.ibm.watson.developer_cloud.visual_recognition.v3.model.DetectFacesOptions;
-import com.ibm.watson.developer_cloud.visual_recognition.v3.model.DetectedFaces;
-import com.ibm.watson.developer_cloud.visual_recognition.v3.model.Face;
-import com.pengrad.telegrambot.TelegramBot;
-import com.pengrad.telegrambot.model.File;
-import com.pengrad.telegrambot.model.request.InputMediaPhoto;
-import com.pengrad.telegrambot.request.BaseRequest;
-import com.pengrad.telegrambot.response.BaseResponse;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
+import net.sourceforge.tess4j.Tesseract;
+import net.sourceforge.tess4j.TesseractException;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import com.pengrad.telegrambot.request.GetFile;
-import com.pengrad.telegrambot.response.GetFileResponse;
 
-
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +27,6 @@ public class Bot extends TelegramLongPollingBot {
 
     Boolean button1IsOn = false;
     Boolean button2IsOn = false;
-    TelegramBotProperties botProperties = new TelegramBotProperties();
-    TelegramBotMessages listMessages = new TelegramBotMessages();
 
     @Override
     public void onUpdateReceived(Update update) {
@@ -76,9 +65,12 @@ public class Bot extends TelegramLongPollingBot {
         }
 
         if(message != null && button2IsOn){
+            try {
+                sendMsg(message, findText(message));
+            } catch (TesseractException | IOException | TelegramApiException e) {
+                e.printStackTrace();
+            }
             button2IsOn = false;
-            if(analyzePhotos(message)) System.out.println("Успешно");
-            else System.out.println("Ошибка");
         }
     }
 
@@ -120,39 +112,22 @@ public class Bot extends TelegramLongPollingBot {
         }
     }
 
-    private boolean analyzePhotos(Message message){
-        boolean ret = false;
-        try {
-            PhotoSize photo = message.getPhoto().get(0);
-            InputMediaPhoto input = new InputMediaPhoto(photo.getFileId());
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode node = mapper.readTree(new URL("https://api.telegram.org/bot5648572959:AAGbFTYRNJ-HQEjnlLmtJAgdoAKsVlnP5qs/getFile?file_id=" + photo.getFileId()));
-            node = node.get("result");
-            String filePath = "https://api.telegram.org/file/bot5648572959:AAGbFTYRNJ-HQEjnlLmtJAgdoAKsVlnP5qs/" +
-                    node.get("file_path");
-            filePath = filePath.replace("\"", "");
-            System.out.println("Фото: [" + filePath + "]");
-            IamOptions options = new IamOptions.Builder()
-                    .apiKey("123")
-                    .build();
-            VisualRecognition visualRecognition = new VisualRecognition("2018-03-19",
-                    options);
-            DetectFacesOptions detectFacesOptions = new DetectFacesOptions.Builder()
-                    .url(filePath)
-                    .build();
-            DetectedFaces result = visualRecognition.detectFaces(detectFacesOptions).execute();
-            System.out.println(result);
-            if(result != null && result.getImages().get(0).getFaces().size()>0) {
-                for(Face face : result.getImages().get(0).getFaces()) {
-                    sendMsg(message, listMessages.faceMessage(face));
-                }
-            } else {
-                sendMsg(message, listMessages.faceNotFound());
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ret;
-        }
-        return ret;
+    private String findText(Message message) throws TesseractException, IOException, TelegramApiException {
+        PhotoSize photo = message.getPhoto().get(2);
+        InputMediaPhoto input = new InputMediaPhoto(photo.getFileId());
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree(new URL("https://api.telegram.org/bot5648572959:AAGbFTYRNJ-HQEjnlLmtJAgdoAKsVlnP5qs/getFile?file_id=" + photo.getFileId()));
+        node = node.get("result");
+        String filePath = "https://api.telegram.org/file/bot5648572959:AAGbFTYRNJ-HQEjnlLmtJAgdoAKsVlnP5qs/" +
+                node.get("file_path");
+        filePath = filePath.replace("\"", "");
+        System.out.println("Фото: [" + filePath + "]");
+
+        Tesseract tesseract = new Tesseract();
+        tesseract.setDatapath("C:/Program Files/Tesseract-OCR/tessdata");
+        tesseract.setLanguage("eng");
+        File file = new File(filePath);
+        BufferedImage image = ImageIO.read(new URL("https://api.telegram.org/file/bot5648572959:AAGbFTYRNJ-HQEjnlLmtJAgdoAKsVlnP5qs/photos/file_3.jpg"));
+        return tesseract.doOCR(image);
     }
 }
